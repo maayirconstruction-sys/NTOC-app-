@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NTOC - نظام إدارة أوامر العمل والتجهيز الفني</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Google Arabic Font: Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        ntoc: {
+                            50: '#f0f4f8',
+                            100: '#d9e2ec',
+                            500: '#102a43',
+                            600: '#0b69a3',
+                            700: '#035388',
+                            800: '#013364',
+                            900: '#002147',
+                            gold: '#f0b429'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .ntoc-glass {
+            background: linear-gradient(135deg, #002147 0%, #0b69a3 100%);
+        }
+        @media print {
+            body { background: white !important; }
+            no-print, header, footer, .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .shadow-xl, .shadow-sm { box-shadow: none !important; border: 1px solid #cbd5e1 !important; }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col justify-between">
+
+    <!-- NTOC Top Navigation Header -->
+    <header class="ntoc-glass text-white sticky top-0 z-30 shadow-lg border-b border-cyan-900/50 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- NTOC Branding -->
+            <div class="flex items-center space-x-4 space-x-reverse">
+                <div class="bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl font-black text-2xl tracking-wider flex items-center justify-center shadow-md border border-amber-300">
+                    NTOC
+                </div>
+                <div class="border-r-2 border-cyan-400/30 pr-4">
+                    <h1 class="text-xl font-extrabold leading-tight tracking-wide flex items-center gap-2">
+                        <span>مركز التشغيل والتحكم الفني</span>
+                        <span class="text-xs bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 px-2 py-0.5 rounded-md font-semibold">نظام أوامر العمل</span>
+                    </h1>
+                    <p class="text-xs text-cyan-200/80 font-medium">National Technical Operations Center - Work Order Management System</p>
+                </div>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex items-center gap-3">
+                <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 shadow-md border border-emerald-500">
+                    <i class="fa-solid fa-file-excel text-sm"></i>
+                    <span class="hidden sm:inline">تصدير Excel</span>
+                </button>
+                <button onclick="openNewOrderModal()" class="bg-amber-400 hover:bg-amber-500 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 shadow-md">
+                    <i class="fa-solid fa-plus text-sm"></i>
+                    <span class="hidden sm:inline">إصدار أمر عمل NTOC</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- [إضافة جديدة] تبويبات الأقسام: العدادات / الميني بيلر -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-2 pb-3">
+            <button id="tab-meters" onclick="setSection('meters')" class="px-5 py-2 rounded-xl text-sm font-extrabold transition flex items-center gap-2">
+                <i class="fa-solid fa-gauge-high"></i> العدادات
+            </button>
+            <button id="tab-mp" onclick="setSection('mp')" class="px-5 py-2 rounded-xl text-sm font-extrabold transition flex items-center gap-2">
+                <i class="fa-solid fa-cubes"></i> الميني بيلر MP
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+
+        <!-- NTOC Operations Overview Banner -->
+        <div class="bg-gradient-to-r from-slate-900 via-ntoc-900 to-ntoc-800 rounded-3xl p-6 text-white mb-8 shadow-md border border-slate-700/50 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 bg-amber-400/20 border border-amber-400/40 text-amber-400 rounded-2xl flex items-center justify-center text-2xl font-bold flex-shrink-0">
+                    <i class="fa-solid fa-tower-cell"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold">لوحة المتابعة التشغيلية NTOC</h2>
+                    <p class="text-xs text-slate-300 mt-0.5">متابعة مراحل التنفيذ، الإحداثيات الجغرافية، الفصل الكهربائي، وفرق العمل</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700">
+                <span class="inline-block w-3 h-3 bg-emerald-400 rounded-full animate-pulse mr-2"></span>
+                <span class="text-xs font-bold text-slate-200">الربط التشغيلي: متصل الآن</span>
+            </div>
+        </div>
+
+        <!-- Stats Overview Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 no-print">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 mb-1">إجمالي أوامر NTOC</p>
+                    <h3 id="stat-total" class="text-2xl font-black text-slate-900">0</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 mb-1">قسم الإنشاءات</p>
+                    <h3 id="stat-construction" class="text-2xl font-black text-indigo-700">0</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-helmet-safety"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 mb-1">قسم الصيانة</p>
+                    <h3 id="stat-maintenance" class="text-2xl font-black text-amber-600">0</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-screwdriver-wrench"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 mb-1">مكتملة وموصولة</p>
+                    <h3 id="stat-completed" class="text-2xl font-black text-emerald-600">0</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- [إضافة جديدة] داشبورد تفاعلي: عدد الأوامر في كل مرحلة (اضغط على المرحلة لفلترة القائمة) -->
+        <div class="mb-8 no-print">
+            <h3 class="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-chart-simple text-amber-500"></i>
+                <span>حالة الأوامر حسب المرحلة — <span id="dashSectionName" class="text-ntoc-600"></span></span>
+                <span class="text-[11px] font-semibold text-slate-400">(اضغط على أي مرحلة لعرض أوامرها)</span>
+            </h3>
+            <div id="stageDashboard" class="grid grid-cols-2 md:grid-cols-5 gap-3"></div>
+        </div>
+
+        <!-- Filter & Search Control Panel -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 mb-6 flex flex-col md:flex-row gap-4 justify-between items-center no-print">
+            <!-- Search Bar -->
+            <div class="relative w-full md:w-80">
+                <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-3.5 text-slate-400"></i>
+                <input type="text" id="searchInput" oninput="filterOrders()" placeholder="بحث برقم أمر NTOC، الكود، الموقع، أو الإحداثيات..." class="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ntoc-600">
+            </div>
+
+            <!-- Department Filter & Stage Filters -->
+            <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 custom-scrollbar">
+                <select id="deptFilter" onchange="filterOrders()" class="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none">
+                    <option value="ALL">جميع الأقسام</option>
+                    <option value="الإنشاءات">قسم الإنشاءات</option>
+                    <option value="الصيانة">قسم الصيانة</option>
+                </select>
+                <button onclick="setFilter('ALL')" id="filter-btn-ALL" class="filter-btn active bg-ntoc-900 text-white px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition">الكل</button>
+                <button onclick="setFilter('1')" id="filter-btn-1" class="filter-btn bg-slate-100 text-slate-600 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition">١. الملف</button>
+                <button onclick="setFilter('2')" id="filter-btn-2" class="filter-btn bg-slate-100 text-slate-600 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition">٢. الحفرية</button>
+                <button onclick="setFilter('3')" id="filter-btn-3" class="filter-btn bg-slate-100 text-slate-600 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition">٣. المعدة</button>
+                <button onclick="setFilter('4')" id="filter-btn-4" class="filter-btn bg-slate-100 text-slate-600 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition">٤. الفصل</button>
+                <button onclick="setFilter('5')" id="filter-btn-5" class="filter-btn bg-slate-100 text-slate-600 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition">٥. التوصيل</button>
+            </div>
+        </div>
+
+        <!-- [إضافة جديدة] نتيجة البحث برقم أمر العمل: توضح حالة الأمر مباشرة -->
+        <div id="searchResult" class="hidden mb-6 no-print"></div>
+
+        <!-- Work Orders Main List -->
+        <div id="ordersContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Cards populated by JS -->
+        </div>
+
+        <!-- Empty State View -->
+        <div id="emptyState" class="hidden text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
+            <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                <i class="fa-solid fa-folder-open"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-700">لا توجد أوامر عمل مطابقة لـ NTOC</h3>
+            <p class="text-sm text-slate-500 mt-1">جرّب تغيير خيارات الفلترة أو أضف أمر عمل جديد</p>
+        </div>
+    </main>
+
+    <!-- Modal: Create New Work Order -->
+    <div id="newOrderModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+                <h3 class="font-bold text-lg text-ntoc-900 flex items-center gap-2">
+                    <span class="bg-amber-400 text-slate-950 px-2 py-0.5 rounded text-xs font-black">NTOC</span>
+                    إنشاء أمر عمل جديد (المرحلة الأولية)
+                </h3>
+                <button onclick="closeNewOrderModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <form id="newOrderForm" onsubmit="handleCreateOrder(event)" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">القسم التابع له *</label>
+                        <select id="new_wo_dept" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none">
+                            <option value="الإنشاءات">قسم الإنشاءات</option>
+                            <option value="الصيانة">قسم الصيانة</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">كود أمر NTOC *</label>
+                        <input type="text" id="new_wo_code" required placeholder="مثال: NTOC-2026-01" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">رقم أمر العمل *</label>
+                        <input type="text" id="new_wo_number" required placeholder="مثال: 902144" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الإصدار *</label>
+                        <input type="date" id="new_wo_date" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">اسم المُصْدِر (المشرف) *</label>
+                        <input type="text" id="new_wo_issuer" required placeholder="اسم مهندس الإصدار" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">اسم المُسْتَلِم الميداني *</label>
+                        <input type="text" id="new_wo_receiver" required placeholder="اسم المستلم" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Location & GPS Coordinates Section -->
+                <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الموقع / العنوان الوصفي *</label>
+                        <input type="text" id="new_wo_location" required placeholder="المنطقة - المدينة - الشارع" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">خط العرض (Latitude)</label>
+                            <input type="text" id="new_wo_lat" placeholder="مثال: 24.7136" class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs dir-ltr text-left">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">خط الطول (Longitude)</label>
+                            <input type="text" id="new_wo_lng" placeholder="مثال: 46.6753" class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs dir-ltr text-left">
+                        </div>
+                    </div>
+                    <button type="button" onclick="getCurrentLocation()" class="w-full py-1.5 bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                        <i class="fa-solid fa-location-crosshairs"></i> التقاط الإحداثيات الحالية عبر GPS
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">فريق المرحلة الأولى</label>
+                        <input type="text" id="new_wo_team" placeholder="أسماء الفنيين" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">رفع مستندات (PDF / Excel)</label>
+                        <input type="file" id="new_wo_docs" accept=".pdf,.xlsx,.xls,.csv" multiple class="w-full text-xs text-slate-500 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">صور الملف الأولية</label>
+                    <input type="file" id="new_wo_photos" accept="image/*" multiple onchange="previewImages(this, 'new_photos_preview')" class="w-full text-xs text-slate-500 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-amber-50 file:text-amber-700">
+                    <div id="new_photos_preview" class="flex flex-wrap gap-2 mt-2"></div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات وتقرير رفع الملف</label>
+                    <textarea id="new_wo_notes" rows="2" placeholder="أدخل الملاحظات العامة..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-ntoc-600 focus:outline-none"></textarea>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                    <button type="button" onclick="closeNewOrderModal()" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-semibold">إلغاء</button>
+                    <button type="submit" class="px-5 py-2 bg-ntoc-900 text-white rounded-xl text-sm font-bold shadow-sm">حفظ وإصدار لأمر NTOC</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Advance Stage Form -->
+    <div id="advanceStageModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+                <div>
+                    <h3 class="font-bold text-lg text-ntoc-900">تحديث مرحلة العمل الميداني</h3>
+                    <p id="advanceModalSubtitle" class="text-xs text-slate-500"></p>
+                </div>
+                <button onclick="closeAdvanceModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="advanceStageForm" onsubmit="handleAdvanceStageSubmit(event)" class="p-6 space-y-4">
+                <input type="hidden" id="adv_wo_id">
+                <input type="hidden" id="adv_target_stage_index">
+
+                <div class="bg-ntoc-50 p-3 rounded-xl border border-ntoc-100 flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-ntoc-900 text-amber-400 font-bold flex items-center justify-center text-sm" id="stageBadgeNum">-</div>
+                    <div>
+                        <p class="text-xs text-ntoc-700 font-semibold">المرحلة التنفيذية التالية:</p>
+                        <h4 id="targetStageName" class="font-bold text-ntoc-900 text-sm"></h4>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ التنفيذ *</label>
+                        <input type="date" id="adv_date" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">وقت التنفيذ *</label>
+                        <input type="time" id="adv_time" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">أعضاء الفرقة المختصة بالمرحلة *</label>
+                    <input type="text" id="adv_team_members" required placeholder="أسماء الفنيين والمنفذين" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                </div>
+
+                <!-- Disconnection time wrapper -->
+                <div id="disconnectionTimeWrapper" class="hidden p-3 bg-purple-50 rounded-xl border border-purple-100 space-y-3">
+                    <div class="text-purple-900 font-bold text-xs"><i class="fa-solid fa-bolt text-purple-600"></i> بيانات فصل وااختبار التيار الكهربائي</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-purple-900 mb-1">وقت الفصل الفعلي *</label>
+                            <input type="time" id="adv_disconnect_time" class="w-full px-3 py-1.5 bg-white border border-purple-200 rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-purple-900 mb-1">وقت إعادة التوصيل المتوقع</label>
+                            <input type="time" id="adv_reconnect_time" class="w-full px-3 py-1.5 bg-white border border-purple-200 rounded-lg text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">صور المرحلة</label>
+                    <input type="file" id="adv_photos" accept="image/*" multiple onchange="previewImages(this, 'adv_photos_preview')" class="w-full text-xs text-slate-500 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-amber-50 file:text-amber-700">
+                    <div id="adv_photos_preview" class="flex flex-wrap gap-2 mt-2"></div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">الملاحظات الفنية للمرحلة *</label>
+                    <textarea id="adv_notes" rows="3" required placeholder="تقرير الفحص والتنفيذ..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"></textarea>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                    <button type="button" onclick="closeAdvanceModal()" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-semibold">إلغاء</button>
+                    <button type="submit" class="px-5 py-2 bg-ntoc-900 text-white rounded-xl text-sm font-bold shadow-sm">اعتماد ونقل للمرحلة التالية</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: View Timeline Details -->
+    <div id="detailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-ntoc-900 text-white no-print">
+                <div class="flex items-center gap-3">
+                    <span class="bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded text-xs">NTOC</span>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span id="detail_wo_code" class="text-xs font-bold text-cyan-200"></span>
+                            <h3 id="detail_wo_number" class="font-bold text-lg"></h3>
+                        </div>
+                        <p id="detail_wo_location" class="text-xs text-slate-300 mt-0.5"><i class="fa-solid fa-location-dot text-amber-400"></i> <span></span></p>
+                    </div>
+                </div>
+                <button onclick="closeDetailsModal()" class="text-slate-400 hover:text-white w-8 h-8 rounded-full flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Modal Content (Timeline) -->
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-grow space-y-6">
+                <!-- Info Header -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                    <div><span class="text-slate-400 block">القسم:</span><strong id="detail_dept" class="text-ntoc-900 text-sm font-extrabold"></strong></div>
+                    <div><span class="text-slate-400 block">المُصْدِر:</span><strong id="detail_issuer" class="text-slate-800 text-sm"></strong></div>
+                    <div><span class="text-slate-400 block">المُسْتَلِم:</span><strong id="detail_receiver" class="text-slate-800 text-sm"></strong></div>
+                    <div><span class="text-slate-400 block">تاريخ الإصدار:</span><strong id="detail_created_at" class="text-slate-800 text-sm"></strong></div>
+                </div>
+
+                <!-- GPS Link Container -->
+                <div id="detailGpsContainer" class="hidden bg-slate-100 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div class="text-xs">
+                        <span class="text-slate-500 font-semibold">الإحداثيات الجغرافية:</span>
+                        <span id="detailGpsCoords" class="font-mono text-slate-900 font-bold ml-2"></span>
+                    </div>
+                    <a id="detailGpsLink" href="#" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5">
+                        <i class="fa-solid fa-map-location-dot"></i> فتح في خرائط Google
+                    </a>
+                </div>
+
+                <!-- Attached Files section -->
+                <div id="detailDocsSection" class="hidden bg-blue-50/60 p-3 rounded-xl border border-blue-200">
+                    <span class="text-xs font-bold text-blue-900 block mb-1"><i class="fa-solid fa-paperclip"></i> المستندات والخرائط المرفقة (PDF / Excel):</span>
+                    <div id="detailDocsList" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <div>
+                    <h4 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-timeline text-amber-500"></i> السجل التشغيلي ومراحل التنفيذ الفني
+                    </h4>
+                    <div id="timelineStepsContainer" class="relative border-r-2 border-slate-200 mr-4 space-y-8 pr-6"></div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center no-print">
+                <button onclick="deleteCurrentOrder()" class="text-rose-600 hover:text-rose-700 text-xs font-bold px-3 py-2 rounded-lg hover:bg-rose-50 flex items-center gap-1">
+                    <i class="fa-solid fa-trash-can"></i> حذف أمر العمل
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="window.print()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-print"></i> طباعة تقرير NTOC
+                    </button>
+                    <button onclick="closeDetailsModal()" class="px-5 py-2 bg-slate-200 text-slate-700 rounded-xl text-sm font-bold">إغلاق</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="imageLightbox" class="fixed inset-0 bg-black/80 z-60 hidden flex items-center justify-center p-4" onclick="closeLightbox()">
+        <img id="lightboxImg" src="" class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain">
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 left-5 bg-ntoc-900 text-white px-4 py-3 rounded-xl shadow-lg border border-cyan-800 text-sm font-bold flex items-center gap-3 transition-all duration-300 transform translate-y-20 opacity-0 z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-amber-400"></i>
+        <span id="toastMessage">تم التحديث بنجاح</span>
+    </div>
+
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto no-print">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500 font-semibold">
+            نظام NTOC التشغيلي لإدارة أوامر العمل الكهربائية والميدانية &copy; 2026 - جميع الحقوق محفوظة
+        </div>
+    </footer>
+
+    <!-- App Script Logic -->
+    <script>
+        const STAGES = [
+            { id: 1, name: "رفع ملف أمر العمل", icon: "fa-file-arrow-up" },
+            { id: 2, name: "عمل الحفرية", icon: "fa-person-digging" },
+            { id: 3, name: "تركيب المعدة", icon: "fa-gears" },
+            { id: 4, name: "مرحلة الفصل", icon: "fa-plug-circle-xmark" },
+            { id: 5, name: "ترمنيشن وتوصيل الكهرباء", icon: "fa-bolt-lightning" }
+        ];
+
+        let workOrders = [];
+        let currentViewingOrderId = null;
+        let tempNewPhotos = [];
+        let tempAdvPhotos = [];
+        let tempNewDocs = [];
+
+        // [إضافة جديدة] القسم الحالي: العدادات (meters) أو الميني بيلر (mp)
+        // بيانات العدادات تحفظ بنفس المفتاح القديم حتى لا تضيع أي أوامر سابقة
+        let currentSection = 'meters';
+        const SECTION_NAMES = { meters: 'العدادات', mp: 'الميني بيلر MP' };
+        function storageKey() {
+            return currentSection === 'mp' ? 'ntoc_work_orders_mp_v1' : 'ntoc_work_orders_v2';
+        }
+
+        window.onload = function() {
+            loadOrders();
+            updateTabs();
+            renderApp();
+            setTodayDateDefault();
+            setupDocUploader();
+        };
+
+        // [إضافة جديدة] التبديل بين العدادات والميني بيلر
+        function setSection(section) {
+            currentSection = section;
+            document.getElementById('searchInput').value = '';
+            document.getElementById('deptFilter').value = 'ALL';
+            loadOrders();
+            updateTabs();
+            setFilter('ALL');
+            renderApp();
+        }
+
+        function updateTabs() {
+            ['meters', 'mp'].forEach(sec => {
+                const btn = document.getElementById('tab-' + sec);
+                const active = sec === currentSection;
+                btn.className = 'px-5 py-2 rounded-xl text-sm font-extrabold transition flex items-center gap-2 ' +
+                    (active ? 'bg-amber-400 text-slate-950 shadow-md' : 'bg-white/10 text-white/80 hover:bg-white/20');
+            });
+            document.getElementById('dashSectionName').innerText = SECTION_NAMES[currentSection];
+        }
+
+        function setTodayDateDefault() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('new_wo_date').value = today;
+        }
+
+        function getCurrentLocation() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const lat = position.coords.latitude.toFixed(6);
+                        const lng = position.coords.longitude.toFixed(6);
+                        document.getElementById('new_wo_lat').value = lat;
+                        document.getElementById('new_wo_lng').value = lng;
+                        showToast('تم التعديل وجلب الإحداثيات بنجاح');
+                    },
+                    error => {
+                        showToast('تعذر جلب الإحداثيات تلقائياً، يمكنك كتابتها يدوياً');
+                    }
+                );
+            } else {
+                showToast('متصفحك لا يدعم خاصية GPS تلقائياً');
+            }
+        }
+
+        function setupDocUploader() {
+            document.getElementById('new_wo_docs').addEventListener('change', function(e) {
+                tempNewDocs = [];
+                const files = Array.from(e.target.files);
+                files.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        tempNewDocs.push({ name: file.name, data: evt.target.result });
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
+        }
+
+        function loadOrders() {
+            workOrders = [];
+            const stored = localStorage.getItem(storageKey());
+            if (stored) {
+                try { workOrders = JSON.parse(stored); } catch(e) { workOrders = []; }
+            }
+        }
+
+        function saveOrders() {
+            localStorage.setItem(storageKey(), JSON.stringify(workOrders));
+        }
+
+        function renderApp() {
+            updateStats();
+            renderStageDashboard();
+            renderSearchResult();
+            renderOrdersList();
+        }
+
+        function updateStats() {
+            const total = workOrders.length;
+            const construction = workOrders.filter(o => o.department === 'الإنشاءات').length;
+            const maintenance = workOrders.filter(o => o.department === 'الصيانة').length;
+            const completed = workOrders.filter(o => o.currentStageIndex === 4 && o.stagesData.length === 5).length;
+
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-construction').innerText = construction;
+            document.getElementById('stat-maintenance').innerText = maintenance;
+            document.getElementById('stat-completed').innerText = completed;
+        }
+
+        // [إضافة جديدة] داشبورد المراحل التفاعلي
+        function renderStageDashboard() {
+            const box = document.getElementById('stageDashboard');
+            const total = workOrders.length || 1;
+            box.innerHTML = STAGES.map((stage, idx) => {
+                const count = workOrders.filter(o => o.currentStageIndex === idx).length;
+                const pct = Math.round((count / total) * 100);
+                const isActive = activeFilter === String(idx + 1);
+                return `
+                    <button onclick="setFilter(activeFilter === '${idx + 1}' ? 'ALL' : '${idx + 1}')" class="text-right bg-white p-4 rounded-2xl shadow-sm border ${isActive ? 'border-amber-400 ring-2 ring-amber-300' : 'border-slate-200/80'} hover:shadow-md transition">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="w-9 h-9 rounded-xl ${isActive ? 'bg-amber-400 text-slate-950' : 'bg-ntoc-50 text-ntoc-700'} flex items-center justify-center"><i class="fa-solid ${stage.icon}"></i></span>
+                            <span class="text-2xl font-black text-slate-900">${count}</span>
+                        </div>
+                        <p class="text-xs font-bold text-slate-700">${stage.id}. ${stage.name}</p>
+                        <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
+                            <div class="bg-amber-400 h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                        </div>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        // [إضافة جديدة] نتيجة البحث: توضح حالة أمر العمل مباشرة
+        function renderSearchResult() {
+            const box = document.getElementById('searchResult');
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+            box.classList.remove('hidden');
+
+            const matches = workOrders.filter(o => o.number.toLowerCase().includes(q));
+            if (matches.length === 0) {
+                box.innerHTML = `
+                    <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 text-sm font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        لا يوجد أمر عمل بهذا الرقم في قسم ${SECTION_NAMES[currentSection]}. جرّب القسم الآخر أو تأكد من الرقم.
+                    </div>`;
+                return;
+            }
+            const o = matches.find(m => m.number.toLowerCase() === q) || matches[0];
+            const n = o.stagesData.length;
+            const stage = STAGES[o.currentStageIndex] || STAGES[4];
+            const last = o.stagesData[n - 1] || {};
+            const isCompleted = o.currentStageIndex === 4 && n === 5;
+            const pct = Math.round((n / 5) * 100);
+
+            box.innerHTML = `
+                <div class="bg-white border-2 ${isCompleted ? 'border-emerald-300' : 'border-amber-300'} rounded-2xl p-5 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div>
+                            <span class="bg-ntoc-900 text-amber-400 font-black text-xs px-2 py-0.5 rounded">${escapeHtml(o.code)}</span>
+                            <h3 class="text-lg font-extrabold text-slate-900 mt-1">أمر عمل #${escapeHtml(o.number)} — ${SECTION_NAMES[currentSection]}</h3>
+                        </div>
+                        <span class="${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} text-sm font-extrabold px-3 py-1.5 rounded-full">
+                            ${isCompleted ? 'مكتمل وموصول' : 'قيد التنفيذ'}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1.5 mb-3">
+                        ${STAGES.map((s, i) => `
+                            <div class="text-center">
+                                <div class="h-2 rounded-full ${i < n ? 'bg-amber-400' : 'bg-slate-200'}"></div>
+                                <p class="text-[10px] mt-1 ${i === o.currentStageIndex ? 'font-extrabold text-ntoc-900' : 'text-slate-400'}">${s.name}</p>
+                            </div>`).join('')}
+                    </div>
+                    <p class="text-sm text-slate-700">المرحلة الحالية: <strong class="text-ntoc-900">${stage.name} (${n}/5 — ${pct}%)</strong></p>
+                    <p class="text-xs text-slate-500 mt-1">آخر تحديث: ${last.date || ''} ${last.time || ''} | الفريق: ${escapeHtml(last.team || 'غير محدد')} | الموقع: ${escapeHtml(o.location)}</p>
+                    <div class="mt-3 flex items-center gap-3">
+                        <button onclick="openDetailsModal('${o.id}')" class="bg-ntoc-900 text-white text-xs font-bold px-4 py-2 rounded-xl">عرض السجل الكامل</button>
+                        ${matches.length > 1 ? `<span class="text-xs text-slate-500">يوجد ${matches.length - 1} نتائج أخرى مشابهة في القائمة أدناه</span>` : ''}
+                    </div>
+                </div>`;
+        }
+
+        let activeFilter = 'ALL';
+        function setFilter(filter) {
+            activeFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-ntoc-900', 'text-white');
+                btn.classList.add('bg-slate-100', 'text-slate-600');
+            });
+            document.getElementById(`filter-btn-${filter}`).classList.remove('bg-slate-100', 'text-slate-600');
+            document.getElementById(`filter-btn-${filter}`).classList.add('bg-ntoc-900', 'text-white');
+            renderStageDashboard();
+            renderOrdersList();
+        }
+
+        function filterOrders() {
+            renderSearchResult();
+            renderOrdersList();
+        }
+
+        function renderOrdersList() {
+            const container = document.getElementById('ordersContainer');
+            const emptyState = document.getElementById('emptyState');
+            const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
+            const deptVal = document.getElementById('deptFilter').value;
+
+            container.innerHTML = '';
+
+            let filtered = workOrders.filter(order => {
+                const matchesSearch = order.code.toLowerCase().includes(searchVal) || 
+                                     order.number.toLowerCase().includes(searchVal) || 
+                                     order.location.toLowerCase().includes(searchVal) ||
+                                     (order.lat && order.lat.includes(searchVal)) ||
+                                     (order.lng && order.lng.includes(searchVal)) ||
+                                     order.issuer.toLowerCase().includes(searchVal) ||
+                                     order.receiver.toLowerCase().includes(searchVal);
+                
+                const matchesDept = deptVal === 'ALL' || order.department === deptVal;
+
+                let matchesStage = true;
+                if (activeFilter !== 'ALL') {
+                    matchesStage = (order.currentStageIndex + 1) === parseInt(activeFilter);
+                }
+
+                return matchesSearch && matchesDept && matchesStage;
+            });
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            filtered.forEach(order => {
+                const currentStageObj = STAGES[order.currentStageIndex] || STAGES[4];
+                const isCompleted = order.currentStageIndex === 4 && order.stagesData.length === 5;
+                const progressPct = Math.round((order.stagesData.length / 5) * 100);
+                const deptColor = order.department === 'الإنشاءات' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800';
+
+                const cardHTML = `
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between overflow-hidden">
+                        <div class="p-5">
+                            <div class="flex items-start justify-between mb-3">
+                                <div>
+                                    <div class="flex items-center gap-1.5 mb-1">
+                                        <span class="bg-ntoc-900 text-amber-400 font-black text-xs px-2 py-0.5 rounded">${escapeHtml(order.code)}</span>
+                                        <span class="${deptColor} font-bold text-xs px-2 py-0.5 rounded-md">${order.department}</span>
+                                    </div>
+                                    <h3 class="text-base font-extrabold text-slate-900">أمر عمل: #${escapeHtml(order.number)}</h3>
+                                </div>
+                                <span class="${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                                    <i class="fa-solid ${isCompleted ? 'fa-check' : 'fa-spinner fa-spin-pulse'} text-[10px]"></i>
+                                    ${isCompleted ? 'مكتمل' : 'قيد التنفيذ'}
+                                </span>
+                            </div>
+
+                            <p class="text-xs text-slate-500 mb-1 flex items-center gap-1.5">
+                                <i class="fa-solid fa-location-dot text-slate-400"></i>
+                                <span>${escapeHtml(order.location)}</span>
+                            </p>
+
+                            ${order.lat && order.lng ? `
+                                <div class="mb-2">
+                                    <a href="https://maps.google.com/?q=${order.lat},${order.lng}" target="_blank" class="inline-flex items-center gap-1 text-[11px] text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold px-2 py-0.5 rounded border border-blue-200">
+                                        <i class="fa-solid fa-map-pin"></i> GPS: ${order.lat}, ${order.lng}
+                                    </a>
+                                </div>
+                            ` : ''}
+
+                            <div class="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mb-3 space-y-1">
+                                <div><strong>المُصْدِر:</strong> ${escapeHtml(order.issuer)} | <strong>المُسْتَلِم:</strong> ${escapeHtml(order.receiver)}</div>
+                                <div><strong>الفريق المسؤول:</strong> ${escapeHtml(order.stagesData[order.stagesData.length-1]?.team || 'غير محدد')}</div>
+                            </div>
+
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
+                                <div class="flex justify-between items-center text-xs font-bold mb-1">
+                                    <span class="text-slate-500">مرحلة التنفيذ:</span>
+                                    <span class="text-ntoc-900 font-extrabold">${currentStageObj.name} (${order.currentStageIndex + 1}/5)</span>
+                                </div>
+                                <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden mt-2">
+                                    <div class="bg-amber-400 h-full rounded-full transition-all duration-500" style="width: ${progressPct}%"></div>
+                                </div>
+                            </div>
+
+                            <div class="text-[11px] text-slate-400 flex justify-between items-center">
+                                <span>تاريخ إصدار NTOC: ${order.createdAt}</span>
+                                <span><i class="fa-solid fa-camera"></i> ${countPhotos(order)} صور</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 border-t border-slate-100 p-3 flex gap-2">
+                            <button onclick="openDetailsModal('${order.id}')" class="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
+                                <i class="fa-solid fa-eye text-slate-500"></i> تفاصيل السجل
+                            </button>
+                            ${!isCompleted ? `
+                                <button onclick="openAdvanceModal('${order.id}')" class="flex-1 bg-ntoc-900 hover:bg-ntoc-800 text-white font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
+                                    <i class="fa-solid fa-arrow-left text-amber-400"></i> تحديث المرحلة
+                                </button>
+                            ` : `
+                                <button disabled class="flex-1 bg-slate-200 text-slate-400 font-bold py-2 px-3 rounded-xl text-xs cursor-not-allowed">مكتمل وموصول</button>
+                            `}
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHTML;
+            });
+        }
+
+        function countPhotos(order) {
+            return order.stagesData.reduce((acc, st) => acc + (st.images ? st.images.length : 0), 0);
+        }
+
+        function openNewOrderModal() {
+            document.getElementById('newOrderModal').classList.remove('hidden');
+        }
+        function closeNewOrderModal() {
+            document.getElementById('newOrderModal').classList.add('hidden');
+            document.getElementById('newOrderForm').reset();
+            document.getElementById('new_photos_preview').innerHTML = '';
+            tempNewPhotos = [];
+            tempNewDocs = [];
+        }
+
+        function previewImages(input, previewId) {
+            const container = document.getElementById(previewId);
+            container.innerHTML = '';
+            const files = Array.from(input.files);
+            if (previewId === 'new_photos_preview') tempNewPhotos = [];
+            if (previewId === 'adv_photos_preview') tempAdvPhotos = [];
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (previewId === 'new_photos_preview') tempNewPhotos.push(e.target.result);
+                    if (previewId === 'adv_photos_preview') tempAdvPhotos.push(e.target.result);
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = "w-12 h-12 rounded-lg object-cover border border-slate-300";
+                    container.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function handleCreateOrder(e) {
+            e.preventDefault();
+            const newOrder = {
+                id: 'ntoc-' + Date.now(),
+                department: document.getElementById('new_wo_dept').value,
+                code: document.getElementById('new_wo_code').value.trim(),
+                number: document.getElementById('new_wo_number').value.trim(),
+                issuer: document.getElementById('new_wo_issuer').value.trim(),
+                receiver: document.getElementById('new_wo_receiver').value.trim(),
+                location: document.getElementById('new_wo_location').value.trim(),
+                lat: document.getElementById('new_wo_lat').value.trim(),
+                lng: document.getElementById('new_wo_lng').value.trim(),
+                createdAt: document.getElementById('new_wo_date').value,
+                documents: [...tempNewDocs],
+                currentStageIndex: 0,
+                stagesData: [
+                    {
+                        stageId: 1,
+                        stageName: STAGES[0].name,
+                        date: document.getElementById('new_wo_date').value,
+                        time: new Date().toTimeString().slice(0,5),
+                        team: document.getElementById('new_wo_team').value.trim() || 'فرقة رفع وثائق NTOC',
+                        notes: document.getElementById('new_wo_notes').value.trim() || 'تم تسجيل أمر العمل والإحداثيات في نظام NTOC بنجاح.',
+                        images: [...tempNewPhotos]
+                    }
+                ]
+            };
+
+            workOrders.unshift(newOrder);
+            saveOrders();
+            renderApp();
+            closeNewOrderModal();
+            showToast('تمت إضافة أمر العمل بنجاح في نظام NTOC');
+        }
+
+        function openAdvanceModal(orderId) {
+            const order = workOrders.find(o => o.id === orderId);
+            if (!order) return;
+            const nextIdx = order.stagesData.length;
+            if (nextIdx >= 5) return;
+
+            document.getElementById('adv_wo_id').value = order.id;
+            document.getElementById('adv_target_stage_index').value = nextIdx;
+            document.getElementById('advanceModalSubtitle').innerText = `أمر عمل NTOC: ${order.code} (#${order.number})`;
+            document.getElementById('stageBadgeNum').innerText = STAGES[nextIdx].id;
+            document.getElementById('targetStageName').innerText = STAGES[nextIdx].name;
+
+            document.getElementById('adv_date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('adv_time').value = new Date().toTimeString().slice(0,5);
+            document.getElementById('adv_team_members').value = '';
+
+            const discWrapper = document.getElementById('disconnectionTimeWrapper');
+            if (nextIdx === 3) {
+                discWrapper.classList.remove('hidden');
+                document.getElementById('adv_disconnect_time').value = new Date().toTimeString().slice(0,5);
+            } else {
+                discWrapper.classList.add('hidden');
+            }
+
+            tempAdvPhotos = [];
+            document.getElementById('adv_photos_preview').innerHTML = '';
+            document.getElementById('advanceStageModal').classList.remove('hidden');
+        }
+
+        function closeAdvanceModal() {
+            document.getElementById('advanceStageModal').classList.add('hidden');
+            document.getElementById('advanceStageForm').reset();
+        }
+
+        function handleAdvanceStageSubmit(e) {
+            e.preventDefault();
+            const orderId = document.getElementById('adv_wo_id').value;
+            const targetIdx = parseInt(document.getElementById('adv_target_stage_index').value);
+            const order = workOrders.find(o => o.id === orderId);
+            if (!order) return;
+
+            const stageRecord = {
+                stageId: STAGES[targetIdx].id,
+                stageName: STAGES[targetIdx].name,
+                date: document.getElementById('adv_date').value,
+                time: document.getElementById('adv_time').value,
+                team: document.getElementById('adv_team_members').value.trim(),
+                notes: document.getElementById('adv_notes').value.trim(),
+                images: [...tempAdvPhotos]
+            };
+
+            if (targetIdx === 3) {
+                stageRecord.disconnectTime = document.getElementById('adv_disconnect_time').value;
+                stageRecord.reconnectTime = document.getElementById('adv_reconnect_time').value;
+            }
+
+            order.stagesData.push(stageRecord);
+            order.currentStageIndex = targetIdx;
+            saveOrders();
+            renderApp();
+            closeAdvanceModal();
+            showToast('تمت المتابعة وتحديث مرحلة أمر العمل بنجاح');
+        }
+
+        function openDetailsModal(orderId) {
+            const order = workOrders.find(o => o.id === orderId);
+            if (!order) return;
+            currentViewingOrderId = orderId;
+
+            document.getElementById('detail_wo_code').innerText = order.code;
+            document.getElementById('detail_wo_number').innerText = `أمر رقم: #${order.number}`;
+            document.getElementById('detail_wo_location').querySelector('span').innerText = order.location;
+            document.getElementById('detail_dept').innerText = order.department;
+            document.getElementById('detail_issuer').innerText = order.issuer;
+            document.getElementById('detail_receiver').innerText = order.receiver;
+            document.getElementById('detail_created_at').innerText = order.createdAt;
+
+            // GPS section in details
+            const gpsSec = document.getElementById('detailGpsContainer');
+            if (order.lat && order.lng) {
+                gpsSec.classList.remove('hidden');
+                document.getElementById('detailGpsCoords').innerText = `${order.lat}, ${order.lng}`;
+                document.getElementById('detailGpsLink').href = `https://maps.google.com/?q=${order.lat},${order.lng}`;
+            } else {
+                gpsSec.classList.add('hidden');
+            }
+
+            // Render documents
+            const docsSec = document.getElementById('detailDocsSection');
+            const docsList = document.getElementById('detailDocsList');
+            docsList.innerHTML = '';
+            if (order.documents && order.documents.length > 0) {
+                docsSec.classList.remove('hidden');
+                order.documents.forEach(doc => {
+                    docsList.innerHTML += `<a href="${doc.data}" download="${doc.name}" class="bg-white border border-blue-200 text-blue-800 text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 shadow-sm hover:bg-blue-50"><i class="fa-solid fa-file-arrow-down text-blue-600"></i> ${doc.name}</a>`;
+                });
+            } else {
+                docsSec.classList.add('hidden');
+            }
+
+            // Timeline
+            const tlContainer = document.getElementById('timelineStepsContainer');
+            tlContainer.innerHTML = '';
+            STAGES.forEach((stage, idx) => {
+                const rec = order.stagesData.find(s => s.stageId === stage.id);
+                const isPassed = idx <= order.currentStageIndex && rec;
+
+                tlContainer.innerHTML += `
+                    <div class="relative">
+                        <div class="absolute -right-[35px] top-0 w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold ${isPassed ? 'bg-amber-400 border-amber-400 text-slate-950' : 'bg-white border-slate-300 text-slate-400'}">
+                            <i class="fa-solid ${stage.icon}"></i>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-2xl border ${isPassed ? 'border-slate-200' : 'border-dashed border-slate-200 opacity-60'}">
+                            <div class="flex items-center justify-between mb-2">
+                                <h5 class="font-bold text-sm text-slate-800">المرحلة ${stage.id}: ${stage.name}</h5>
+                                ${rec ? `<span class="text-[11px] text-slate-500 bg-white border px-2 py-0.5 rounded-md font-semibold">${rec.date} - ${rec.time}</span>` : `<span class="text-[11px] text-slate-400">في الانتظار</span>`}
+                            </div>
+                            ${rec ? `
+                                <div class="text-xs space-y-2">
+                                    <div class="bg-amber-50 border border-amber-200/80 p-2 rounded-lg font-bold text-amber-900">
+                                        <i class="fa-solid fa-users"></i> الفرقة المنفذة: ${escapeHtml(rec.team)}
+                                    </div>
+                                    <p class="text-slate-600 bg-white p-3 rounded-xl border">${escapeHtml(rec.notes)}</p>
+                                    ${rec.disconnectTime ? `<div class="bg-purple-100 p-2 rounded-lg font-bold text-purple-950 text-xs">وقت الفصل: ${rec.disconnectTime} ${rec.reconnectTime ? '| التوصيل: '+rec.reconnectTime : ''}</div>` : ''}
+                                    ${rec.images && rec.images.length > 0 ? `
+                                        <div class="flex flex-wrap gap-2 pt-1">
+                                            ${rec.images.map(img => `<img src="${img}" onclick="openLightbox('${img}')" class="w-16 h-16 rounded-xl object-cover border cursor-pointer">`).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            ` : `<p class="text-xs text-slate-400 italic">لم يتم إنجاز هذه المرحلة الفنية بعد.</p>`}
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('detailsModal').classList.remove('hidden');
+        }
+
+        function closeDetailsModal() {
+            document.getElementById('detailsModal').classList.add('hidden');
+            currentViewingOrderId = null;
+        }
+
+        function deleteCurrentOrder() {
+            if (!currentViewingOrderId) return;
+            if (confirm('هل أنت متأكد من رغبتك في حذف أمر عمل NTOC نهائياً؟')) {
+                workOrders = workOrders.filter(o => o.id !== currentViewingOrderId);
+                saveOrders();
+                renderApp();
+                closeDetailsModal();
+                showToast('تم حذف أمر العمل');
+            }
+        }
+
+        function exportToExcel() {
+            if (workOrders.length === 0) {
+                alert('لا توجد بيانات لتصديرها');
+                return;
+            }
+            const dataToExport = workOrders.map(o => ({
+                "كود NTOC": o.code,
+                "رقم الأمر": o.number,
+                "القسم": o.department,
+                "الموقع": o.location,
+                "خط العرض (Lat)": o.lat || '',
+                "خط الطول (Lng)": o.lng || '',
+                "رابط الخريطة": (o.lat && o.lng) ? `https://maps.google.com/?q=${o.lat},${o.lng}` : '',
+                "المُصْدِر": o.issuer,
+                "المُسْتَلِم": o.receiver,
+                "تاريخ الإصدار": o.createdAt,
+                "المرحلة الحالية": STAGES[o.currentStageIndex].name,
+                "عدد المراحل المنجزة": o.stagesData.length
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "أوامر NTOC");
+            XLSX.writeFile(workbook, `NTOC_${currentSection}_Work_Orders_${new Date().toISOString().split('T')[0]}.xlsx`);
+            showToast('تم تصدير ملف Excel بنجاح');
+        }
+
+        function openLightbox(src) {
+            document.getElementById('lightboxImg').src = src;
+            document.getElementById('imageLightbox').classList.remove('hidden');
+        }
+        function closeLightbox() {
+            document.getElementById('imageLightbox').classList.add('hidden');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+    </script>
+</body>
+</html>

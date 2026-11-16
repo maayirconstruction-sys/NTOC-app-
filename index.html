@@ -121,7 +121,7 @@
             </div>
             <div class="flex items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700">
                 <span class="inline-block w-3 h-3 bg-emerald-400 rounded-full animate-pulse mr-2"></span>
-                <span class="text-xs font-bold text-slate-200">الربط التشغيلي: متصل الآن</span>
+                <span id="cloudStatus" class="text-xs font-bold text-slate-200">الربط التشغيلي: جاري الاتصال...</span>
             </div>
         </div>
 
@@ -521,6 +521,7 @@
             updateTabs();
             setFilter('ALL');
             renderApp();
+            startCloud();
         }
 
         function updateTabs() {
@@ -580,7 +581,88 @@
         }
 
         function saveOrders() {
-            localStorage.setItem(storageKey(), JSON.stringify(workOrders));
+            try { localStorage.setItem(storageKey(), JSON.stringify(workOrders)); } catch(e) {}
+            cloudSave();
+        }
+
+        // ===== [إضافة جديدة] المزامنة مع Firebase Firestore =====
+        // كل أمر عمل = مستند واحد. مجموعتان منفصلتان: orders_meters و orders_mp
+        let cloudUnsub = null;
+        let cloudSynced = {};   // اسم المجموعة -> { معرّف الأمر: آخر نسخة تمت مزامنتها }
+        let cloudFirstLoad = true;
+        function colName() { return 'orders_' + currentSection; }
+        function setCloudStatus(text, ok) {
+            const el = document.getElementById('cloudStatus');
+            if (el) { el.innerText = text; el.style.color = ok ? '#a7f3d0' : '#fecaca'; }
+        }
+
+        function cloudSave() {
+            const fb = window.fb;
+            if (!fb) return;
+            const col = colName();
+            const known = cloudSynced[col] = cloudSynced[col] || {};
+            workOrders.forEach(o => {
+                const json = JSON.stringify(o);
+                if (known[o.id] === json) return;
+                known[o.id] = json;
+                fb.setDoc(fb.doc(fb.db, col, o.id), JSON.parse(json)).catch(err => {
+                    delete known[o.id];
+                    showToast('تعذر الحفظ على السحابة (' + (err.code || 'خطأ') + '). الأمر محفوظ على هذا الجهاز فقط.');
+                });
+            });
+            Object.keys(known).forEach(id => {
+                if (!workOrders.some(o => o.id === id)) {
+                    delete known[id];
+                    fb.deleteDoc(fb.doc(fb.db, col, id)).catch(() => {});
+                }
+            });
+        }
+
+        function startCloud() {
+            const fb = window.fb;
+            if (!fb) { setCloudStatus('الربط التشغيلي: محلي (بدون سحابة)', false); return; }
+            if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+            const col = colName();
+            cloudFirstLoad = true;
+            cloudUnsub = fb.onSnapshot(fb.collection(fb.db, col), snap => {
+                setCloudStatus('الربط التشغيلي: متصل بالسحابة', true);
+                if (snap.empty && cloudFirstLoad && workOrders.length > 0) {
+                    // أول مرة: ارفع الأوامر الموجودة على هذا الجهاز إلى السحابة
+                    cloudFirstLoad = false;
+                    cloudSave();
+                    return;
+                }
+                cloudFirstLoad = false;
+                const list = [];
+                const known = {};
+                snap.forEach(d => { const o = d.data(); list.push(o); known[o.id] = JSON.stringify(o); });
+                list.sort((a, b) => String(b.id).localeCompare(String(a.id), undefined, { numeric: true }));
+                cloudSynced[col] = known;
+                if (col !== colName()) return;
+                workOrders = list;
+                try { localStorage.setItem(storageKey(), JSON.stringify(workOrders)); } catch(e) {}
+                renderApp();
+            }, err => {
+                setCloudStatus('الربط التشغيلي: غير متصل (' + (err.code || 'خطأ') + ')', false);
+                showToast('تعذر الاتصال بالسحابة، يعمل التطبيق محلياً. تحقق من قواعد Firestore.');
+            });
+        }
+
+        // تصغير الصور قبل الحفظ حتى لا يتجاوز الأمر حد حجم المستند في Firestore
+        function shrinkImage(dataUrl) {
+            return new Promise(resolve => {
+                const im = new Image();
+                im.onload = () => {
+                    const k = Math.min(1, 800 / Math.max(im.width, im.height));
+                    const c = document.createElement('canvas');
+                    c.width = Math.round(im.width * k);
+                    c.height = Math.round(im.height * k);
+                    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+                    resolve(c.toDataURL('image/jpeg', 0.6));
+                };
+                im.onerror = () => resolve(dataUrl);
+                im.src = dataUrl;
+            });
         }
 
         function renderApp() {
@@ -829,12 +911,14 @@
             files.forEach(file => {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    if (previewId === 'new_photos_preview') tempNewPhotos.push(e.target.result);
-                    if (previewId === 'adv_photos_preview') tempAdvPhotos.push(e.target.result);
-                    const img = document.createElement('img');
-                    img.src = e.target.result;
-                    img.className = "w-12 h-12 rounded-lg object-cover border border-slate-300";
-                    container.appendChild(img);
+                    shrinkImage(e.target.result).then(data => {
+                        if (previewId === 'new_photos_preview') tempNewPhotos.push(data);
+                        if (previewId === 'adv_photos_preview') tempAdvPhotos.push(data);
+                        const img = document.createElement('img');
+                        img.src = data;
+                        img.className = "w-12 h-12 rounded-lg object-cover border border-slate-300";
+                        container.appendChild(img);
+                    });
                 };
                 reader.readAsDataURL(file);
             });
@@ -1139,6 +1223,25 @@
             if (!str) return '';
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
+    </script>
+
+    <!-- [إضافة جديدة] Firebase Firestore -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEtitf5HkiM-iOPUKWHgBYIiAC4LHA7tU",
+            authDomain: "ntoc-app.firebaseapp.com",
+            projectId: "ntoc-app",
+            storageBucket: "ntoc-app.firebasestorage.app",
+            messagingSenderId: "988347115105",
+            appId: "1:988347115105:web:f275b06595342136a8ac20"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.fb = { db: getFirestore(app), collection, doc, setDoc, deleteDoc, onSnapshot };
+        startCloud();
     </script>
 </body>
 </html>
